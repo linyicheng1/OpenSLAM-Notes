@@ -1,0 +1,17 @@
+数据预处理
+    - 特征点跟踪
+    [31] An iterative image registration technique with an application to stereo vision
+    [32] Good features to track
+    [33] Multiple View Geometry in Computer Vision（多视图几何书）
+    - imu预积分
+   [16] Tightly-coupled monocular visualinertial fusion for autonomous flight of rotorcraft MAVs
+   [19] On-manifold preintegration for real-time visual–inertial odometry
+   [24] A square root inverse filter for efficient vision-aided inertial navigation on mobile devices  
+
+估计量的初始化
+   - 滑动窗口中纯视觉的SfM
+   - 视觉惯性对齐 
+
+紧融合的单目VIO
+
+重定位 
