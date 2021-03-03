@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS "-std=c++11")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
+# 使用到的库ROS、Eigen、opencv和Ceres
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     std_msgs
@@ -24,6 +25,7 @@ find_package(Ceres REQUIRED)
 include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 find_package(Eigen3)
 include_directories(
   ${catkin_INCLUDE_DIRS}
@@ -31,7 +33,7 @@ include_directories(
 )
 
 catkin_package()
-
+# 所有的cpp文件 
 add_executable(vins_estimator
     src/estimator_node.cpp
     src/parameters.cpp

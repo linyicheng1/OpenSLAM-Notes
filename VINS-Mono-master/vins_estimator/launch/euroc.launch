@@ -1,17 +1,18 @@
+<!--         算法运行文件          -->>
 <launch>
     <arg name="config_path" default = "$(find feature_tracker)/../config/euroc/euroc_config.yaml" />
 	  <arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
-    
+    <!-- 运行节点 feature_tracker -->>
     <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="log">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
-
+    <!-- 运行节点 vins_estimator -->>
     <node name="vins_estimator" pkg="vins_estimator" type="vins_estimator" output="screen">
        <param name="config_file" type="string" value="$(arg config_path)" />
        <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
-
+    <!-- 运行节点 pose_graph -->>
     <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="visualization_shift_x" type="int" value="0" />

@@ -94,7 +94,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
         if (i != 1 || !STEREO_TRACK)
             trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), img_msg->header.stamp.toSec());
         else
-        {// 其他，感觉还没实现 
+        {// 其他，感觉还没实现 ·
             if (EQUALIZE)
             {
                 cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
