@@ -291,6 +291,8 @@ void extrinsic_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     m_process.unlock();
 }
 
+
+// 回环检测部分线程
 void process()
 {
     if (!LOOP_CLOSURE)
@@ -302,6 +304,7 @@ void process()
         nav_msgs::Odometry::ConstPtr pose_msg = NULL;
 
         // find out the messages with same time stamp
+        // 根据时间戳获取数据 
         m_buf.lock();
         if(!image_buf.empty() && !point_buf.empty() && !pose_buf.empty())
         {
@@ -410,11 +413,12 @@ void process()
 
                     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
                 }
-
+                // 构造一个关键帧,参数如下 
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   
                 m_process.lock();
                 start_flag = 1;
+                // 核心调用函数 addKeyFrame 
                 posegraph.addKeyFrame(keyframe, 1);
                 m_process.unlock();
                 frame_index++;
@@ -526,7 +530,7 @@ int main(int argc, char **argv)
     }
 
     fsSettings.release();
-
+    // 订阅 vins_estimator 的计算结果 
     ros::Subscriber sub_imu_forward = n.subscribe("/vins_estimator/imu_propagate", 2000, imu_forward_callback);
     ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 2000, vio_callback);
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
@@ -534,7 +538,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
     ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
     ros::Subscriber sub_relo_relative_pose = n.subscribe("/vins_estimator/relo_relative_pose", 2000, relo_relative_pose_callback);
-
+    // 发布可视化的数据 
     pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_key_odometrys = n.advertise<visualization_msgs::Marker>("key_odometrys", 1000);
@@ -544,8 +548,8 @@ int main(int argc, char **argv)
     std::thread measurement_process;
     std::thread keyboard_command_process;
 
-    measurement_process = std::thread(process);
-    keyboard_command_process = std::thread(command);
+    measurement_process = std::thread(process);// 优化算法 
+    keyboard_command_process = std::thread(command);// 键盘操作
 
 
     ros::spin();

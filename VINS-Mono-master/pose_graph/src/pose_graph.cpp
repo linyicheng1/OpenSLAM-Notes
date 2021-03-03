@@ -39,14 +39,18 @@ void PoseGraph::loadVocabulary(std::string voc_path)
     db.setVocabulary(*voc, false, 0);
 }
 
+
+// 位姿图的核心调用函数 
 void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
 {
     //shift to base frame
     Vector3d vio_P_cur;
     Matrix3d vio_R_cur;
+    // 如果新加了一帧数据
     if (sequence_cnt != cur_kf->sequence)
     {
         sequence_cnt++;
+        // 回环的一些数据 
         sequence_loop.push_back(0);
         w_t_vio = Eigen::Vector3d(0, 0, 0);
         w_r_vio = Eigen::Matrix3d::Identity();
@@ -55,25 +59,30 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         r_drift = Eigen::Matrix3d::Identity();
         m_drift.unlock();
     }
-    
+    // 获取关键帧位置 
     cur_kf->getVioPose(vio_P_cur, vio_R_cur);
+    // 回环校准后的位置 
     vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
     vio_R_cur = w_r_vio *  vio_R_cur;
+    // 更新关键帧位置 
     cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
     cur_kf->index = global_index;
     global_index++;
 	int loop_index = -1;
+    // 回环检测
     if (flag_detect_loop)
     {
         TicToc tmp_t;
         loop_index = detectLoop(cur_kf, cur_kf->index);
     }
     else
-    {
+    {   
+        // 直接添加到词袋模型中
         addKeyFrameIntoVoc(cur_kf);
     }
 	if (loop_index != -1)
-	{
+	{// 成功的检测到了回环 
+
         //printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
         KeyFrame* old_kf = getKeyFrame(loop_index);
 
@@ -148,6 +157,8 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
+
+    // 一些其他功能实现 
     if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
@@ -301,6 +312,8 @@ KeyFrame* PoseGraph::getKeyFrame(int index)
         return NULL;
 }
 
+
+// 回环检测部分
 int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
 {
     // put image into image_pool; for visualization
@@ -400,6 +413,8 @@ void PoseGraph::addKeyFrameIntoVoc(KeyFrame* keyframe)
     db.add(keyframe->brief_descriptors);
 }
 
+
+// 单独的线程在不断运行4自由度的图优化算法   
 void PoseGraph::optimize4DoF()
 {
     while(true)
