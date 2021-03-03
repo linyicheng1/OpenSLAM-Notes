@@ -132,7 +132,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
 	// 滑动窗口判断，根据逻辑条件对窗口内的关键帧进行筛选 
-	// 1、提出前一帧数据
+	// 1、剔除前一帧数据
 	// 2、剔除最远的一帧数据 
     if (f_manager.addFeatureCheckParallax(frame_count, image, td))
         marginalization_flag = MARGIN_OLD;
@@ -142,7 +142,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("this frame is--------------------%s", marginalization_flag ? "reject" : "accept");
     ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
     ROS_DEBUG("Solving %d", frame_count);
-    ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
+    ROS_DEBUG("number of feature: %d", f_manager.
+    getFeatureCount());
+    
     Headers[frame_count] = header;
 	// 构造一帧关键帧数据 
     ImageFrame imageframe(image, header.stamp.toSec());
@@ -308,7 +310,7 @@ bool Estimator::initialStructure()
 	// 计算相对位置
     if (!relativePose(relative_R, relative_T, l))
     {
-    	// 没有足够的特征点或者足够的视差 
+        // 没有足够的特征点或者足够的视差 
         ROS_INFO("Not enough features or parallax; Move device around");
         return false;
     }
@@ -750,7 +752,7 @@ void Estimator::optimization()
     {
         // 添加优化节点
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        // 相机在对应帧的位置和速度 
+        // 相机在对应帧的位置和速度
         problem.AddParameterBlock(para_Pose[i], SIZE_POSE, local_parameterization);
         problem.AddParameterBlock(para_SpeedBias[i], SIZE_SPEEDBIAS);
     }
@@ -900,7 +902,8 @@ void Estimator::optimization()
     //cout << summary.BriefReport() << endl;
     ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
     ROS_DEBUG("solver costs: %f", t_solver.toc());
-
+    
+    ////////////////////// 优化后处理部分 ///////////////////// 
     double2vector();
     // 边缘化流程 
     TicToc t_whole_marginalization;
@@ -1211,23 +1214,27 @@ void Estimator::slideWindowOld()
     else
         f_manager.removeBack();
 }
-
+// 设置重定位数据
 void Estimator::setReloFrame(double _frame_stamp, int _frame_index, vector<Vector3d> &_match_points, Vector3d _relo_t, Matrix3d _relo_r)
 {
+    // 保存重定位时间戳和id
     relo_frame_stamp = _frame_stamp;
     relo_frame_index = _frame_index;
+    // 保存匹配点 
     match_points.clear();
     match_points = _match_points;
+    // 保存重定位得到的相对位置 
     prev_relo_t = _relo_t;
     prev_relo_r = _relo_r;
+    // 遍历滑动窗口 
     for(int i = 0; i < WINDOW_SIZE; i++)
     {
         if(relo_frame_stamp == Headers[i].stamp.toSec())
-        {
-            relo_frame_local_index = i;
+        {// 找到成功重定位的那一帧
+            relo_frame_local_index = i;// 记录重定位的那一帧id 
             relocalization_info = 1;
             for (int j = 0; j < SIZE_POSE; j++)
-                relo_Pose[j] = para_Pose[i][j];
+                relo_Pose[j] = para_Pose[i][j];// 保存重定位那一帧的位置 
         }
     }
 }

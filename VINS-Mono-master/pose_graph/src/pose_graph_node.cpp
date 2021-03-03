@@ -451,6 +451,7 @@ void command()
     }
 }
 
+// 后端优化的main函数 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "pose_graph");

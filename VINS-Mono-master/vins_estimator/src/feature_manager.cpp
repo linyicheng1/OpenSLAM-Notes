@@ -52,6 +52,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
+    // 遍历查找所有匹配点 
     for (auto &id_pts : image)
     {
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
@@ -82,11 +83,13 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         if (it_per_id.start_frame <= frame_count - 2 &&
             it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
         {
+            // 匹配点的视差
             parallax_sum += compensatedParallax2(it_per_id, frame_count);
+            // 匹配点数 
             parallax_num++;
         }
     }
-
+    
     if (parallax_num == 0)
     {
         return true;
@@ -95,6 +98,8 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     {
         ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
         ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
+        // 平均视差 > MIN_PARALLAX 则删除最旧一帧
+        // 否则删除当前帧
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
 }
@@ -206,32 +211,36 @@ VectorXd FeatureManager::getDepthVector()
     return dep_vec;
 }
 
+// 三角化求得初始值
 void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
 {
     for (auto &it_per_id : feature)
-    {
+    {// 遍历所有特征点 
         it_per_id.used_num = it_per_id.feature_per_frame.size();
+        // 1、在多于两帧内被看到
+        // 2、在前两帧内就被看到了
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
-
+        // 异常值去除 
         if (it_per_id.estimated_depth > 0)
             continue;
+            
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
 
         ROS_ASSERT(NUM_OF_CAM == 1);
         Eigen::MatrixXd svd_A(2 * it_per_id.feature_per_frame.size(), 4);
         int svd_idx = 0;
-
+        // 一些初始值 
         Eigen::Matrix<double, 3, 4> P0;
         Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
         Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
         P0.leftCols<3>() = Eigen::Matrix3d::Identity();
         P0.rightCols<1>() = Eigen::Vector3d::Zero();
-
+        // 遍历所有看到当前特征点的帧 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
-
+            // 计算两帧之间的位置 
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
             Eigen::Vector3d t = R0.transpose() * (t1 - t0);
@@ -239,6 +248,7 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
             Eigen::Matrix<double, 3, 4> P;
             P.leftCols<3>() = R.transpose();
             P.rightCols<1>() = -R.transpose() * t;
+            // 构造求解矩阵 
             Eigen::Vector3d f = it_per_frame.point.normalized();
             svd_A.row(svd_idx++) = f[0] * P.row(2) - f[2] * P.row(0);
             svd_A.row(svd_idx++) = f[1] * P.row(2) - f[2] * P.row(1);
@@ -246,6 +256,7 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
             if (imu_i == imu_j)
                 continue;
         }
+        // 使用SVD分解的方式求得深度估计的初始值 
         ROS_ASSERT(svd_idx == svd_A.rows());
         Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
         double svd_method = svd_V[2] / svd_V[3];
@@ -359,6 +370,7 @@ void FeatureManager::removeFront(int frame_count)
     }
 }
 
+// 计算匹配点的视差 
 double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int frame_count)
 {
     //check the second last frame is keyframe or not
