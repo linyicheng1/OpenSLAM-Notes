@@ -86,13 +86,16 @@ MarginalizationInfo::~MarginalizationInfo()
     }
 }
 
+// 添加被边缘化掉的误差函数 
 void MarginalizationInfo::addResidualBlockInfo(ResidualBlockInfo *residual_block_info)
 {
+    // 保存这个指针 
     factors.emplace_back(residual_block_info);
-
+    // 参数块 
     std::vector<double *> &parameter_blocks = residual_block_info->parameter_blocks;
+    // cost 代价函数 
     std::vector<int> parameter_block_sizes = residual_block_info->cost_function->parameter_block_sizes();
-
+    // 开辟了一些内存 
     for (int i = 0; i < static_cast<int>(residual_block_info->parameter_blocks.size()); i++)
     {
         double *addr = parameter_blocks[i];
@@ -107,12 +110,15 @@ void MarginalizationInfo::addResidualBlockInfo(ResidualBlockInfo *residual_block
     }
 }
 
+// 计算每一个残差对应的Jacobian
 void MarginalizationInfo::preMarginalize()
 {
+    // 遍历所有的残差项
     for (auto it : factors)
-    {
+    {   
+        // 计算得到当前的Jacobian 
         it->Evaluate();
-
+        // 开辟内存，存储当前的状态变量值  
         std::vector<int> block_sizes = it->cost_function->parameter_block_sizes();
         for (int i = 0; i < static_cast<int>(block_sizes.size()); i++)
         {
@@ -142,9 +148,9 @@ void* ThreadsConstructA(void* threadsstruct)
 {
     ThreadsStruct* p = ((ThreadsStruct*)threadsstruct);
     for (auto it : p->sub_factors)
-    {
+    {// 遍历所有的残差项
         for (int i = 0; i < static_cast<int>(it->parameter_blocks.size()); i++)
-        {
+        {// 遍历当前残差项的参数 
             int idx_i = p->parameter_block_idx[reinterpret_cast<long>(it->parameter_blocks[i])];
             int size_i = p->parameter_block_size[reinterpret_cast<long>(it->parameter_blocks[i])];
             if (size_i == 7)
@@ -171,16 +177,17 @@ void* ThreadsConstructA(void* threadsstruct)
     return threadsstruct;
 }
 
+// 真正边缘化的部分 
 void MarginalizationInfo::marginalize()
 {
     int pos = 0;
     for (auto &it : parameter_block_idx)
-    {
+    {// 遍历所有需要边缘化的节点 
         it.second = pos;
         pos += localSize(parameter_block_size[it.first]);
     }
 
-    m = pos;
+    m = pos;// 边缘化节点的维度 
 
     for (const auto &it : parameter_block_size)
     {
@@ -191,10 +198,11 @@ void MarginalizationInfo::marginalize()
         }
     }
 
-    n = pos - m;
+    n = pos - m;// n为需要保留的节点，而 pos 是所有涉及到的节点数 
 
     //ROS_DEBUG("marginalization, pos: %d, m: %d, n: %d, size: %d", pos, m, n, (int)parameter_block_idx.size());
-
+    // 构造矩阵 A = pos X pos 
+    //         b = pos 
     TicToc t_summing;
     Eigen::MatrixXd A(pos, pos);
     Eigen::VectorXd b(pos);
@@ -228,11 +236,12 @@ void MarginalizationInfo::marginalize()
     */
     //multi thread
 
-
+    // 多线程进行计算
     TicToc t_thread_summing;
     pthread_t tids[NUM_THREADS];
     ThreadsStruct threadsstruct[NUM_THREADS];
     int i = 0;
+    // 为每一个线程平均分配需要计算的因子 
     for (auto it : factors)
     {
         threadsstruct[i].sub_factors.push_back(it);
@@ -242,10 +251,12 @@ void MarginalizationInfo::marginalize()
     for (int i = 0; i < NUM_THREADS; i++)
     {
         TicToc zero_matrix;
+        // 每一个线程都创造一个完整大小的A b
         threadsstruct[i].A = Eigen::MatrixXd::Zero(pos,pos);
         threadsstruct[i].b = Eigen::VectorXd::Zero(pos);
         threadsstruct[i].parameter_block_size = parameter_block_size;
         threadsstruct[i].parameter_block_idx = parameter_block_idx;
+        // 创建线程 
         int ret = pthread_create( &tids[i], NULL, ThreadsConstructA ,(void*)&(threadsstruct[i]));
         if (ret != 0)
         {
@@ -253,6 +264,7 @@ void MarginalizationInfo::marginalize()
             ROS_BREAK();
         }
     }
+    // 把所有线程创建的A，b加起来得到最终的 
     for( int i = NUM_THREADS - 1; i >= 0; i--)  
     {
         pthread_join( tids[i], NULL ); 
@@ -262,13 +274,14 @@ void MarginalizationInfo::marginalize()
     //ROS_DEBUG("thread summing up costs %f ms", t_thread_summing.toc());
     //ROS_INFO("A diff %f , b diff %f ", (A - tmp_A).sum(), (b - tmp_b).sum());
 
-
+    // 利用舒尔补公式进行计算 
     //TODO
+    // Amm = 1/2 * (A + A^T)
     Eigen::MatrixXd Amm = 0.5 * (A.block(0, 0, m, m) + A.block(0, 0, m, m).transpose());
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
 
     //ROS_ASSERT_MSG(saes.eigenvalues().minCoeff() >= -1e-4, "min eigenvalue %f", saes.eigenvalues().minCoeff());
-
+    // 
     Eigen::MatrixXd Amm_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > eps).select(saes.eigenvalues().array().inverse(), 0)).asDiagonal() * saes.eigenvectors().transpose();
     //printf("error1: %f\n", (Amm * Amm_inv - Eigen::MatrixXd::Identity(m, m)).sum());
 
@@ -286,7 +299,7 @@ void MarginalizationInfo::marginalize()
 
     Eigen::VectorXd S_sqrt = S.cwiseSqrt();
     Eigen::VectorXd S_inv_sqrt = S_inv.cwiseSqrt();
-
+    // 最终得到线性的Jacobians 和 Residuals 
     linearized_jacobians = S_sqrt.asDiagonal() * saes2.eigenvectors().transpose();
     linearized_residuals = S_inv_sqrt.asDiagonal() * saes2.eigenvectors().transpose() * b;
     //std::cout << A << std::endl
@@ -330,6 +343,7 @@ MarginalizationFactor::MarginalizationFactor(MarginalizationInfo* _marginalizati
     set_num_residuals(marginalization_info->n);
 };
 
+// 边缘化节点的误差函数
 bool MarginalizationFactor::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
 {
     //printf("internal addr,%d, %d\n", (int)parameter_block_sizes().size(), num_residuals());
@@ -343,6 +357,7 @@ bool MarginalizationFactor::Evaluate(double const *const *parameters, double *re
     int n = marginalization_info->n;
     int m = marginalization_info->m;
     Eigen::VectorXd dx(n);
+    // 计算保留下来节点向量的增量
     for (int i = 0; i < static_cast<int>(marginalization_info->keep_block_size.size()); i++)
     {
         int size = marginalization_info->keep_block_size[i];
@@ -361,7 +376,9 @@ bool MarginalizationFactor::Evaluate(double const *const *parameters, double *re
             }
         }
     }
+    // 误差计算，就是一个线性模型 y = J * dx + b
     Eigen::Map<Eigen::VectorXd>(residuals, n) = marginalization_info->linearized_residuals + marginalization_info->linearized_jacobians * dx;
+    // 下面实际上就只是把边缘化计算的时候的值赋给了 jacobian 指针
     if (jacobians)
     {
 

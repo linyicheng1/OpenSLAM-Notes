@@ -911,7 +911,7 @@ void Estimator::optimization()
     {// 对最远的一帧进行边缘化，实际上就是构造边缘化的约束条件 
         MarginalizationInfo *marginalization_info = new MarginalizationInfo();
         vector2double();
-
+        // 1、将上一次先验残差项传递给 marginalization_info
         if (last_marginalization_info)
         {
             vector<int> drop_set;
@@ -929,7 +929,7 @@ void Estimator::optimization()
 
             marginalization_info->addResidualBlockInfo(residual_block_info);
         }
-
+        //2、将第0帧和第1帧间的IMU因子 IMUFactor(pre_integrations[1]),添加到 marginalization_info 
         {
             if (pre_integrations[1]->sum_dt < 10.0)
             {
@@ -940,7 +940,7 @@ void Estimator::optimization()
                 marginalization_info->addResidualBlockInfo(residual_block_info);
             }
         }
-
+        //3、将第一次观测为第零帧的所有路标点对应的视觉观测添加到 marginalization_info 
         {
             int feature_index = -1;
             for (auto &it_per_id : f_manager.feature)
@@ -985,15 +985,15 @@ void Estimator::optimization()
                 }
             }
         }
-
+        //4、计算每一个残差对应的Jacobian，并将各参数块拷贝到统一的内存 
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
         ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
-        
+        //5、多线程构造先验项舒尔补AX=b的结构，在x0处线性化计算Jacobian和残差
         TicToc t_margin;
         marginalization_info->marginalize();
         ROS_DEBUG("marginalization %f ms", t_margin.toc());
-
+        //6、调整参数块在下一次窗口中对应的位置（往前移一格），这里只是指针往前指了
         std::unordered_map<long, double *> addr_shift;
         for (int i = 1; i <= WINDOW_SIZE; i++)
         {
@@ -1019,7 +1019,7 @@ void Estimator::optimization()
         if (last_marginalization_info &&
             std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[WINDOW_SIZE - 1]))
         {
-
+            //1、保留次新帧的IMU测量，丢弃该帧的视觉测量，将上一次先验残差项传递给marginalization_info
             MarginalizationInfo *marginalization_info = new MarginalizationInfo();
             vector2double();
             if (last_marginalization_info)
@@ -1039,17 +1039,17 @@ void Estimator::optimization()
 
                 marginalization_info->addResidualBlockInfo(residual_block_info);
             }
-
+            // premargin 
             TicToc t_pre_margin;
             ROS_DEBUG("begin marginalization");
             marginalization_info->preMarginalize();
             ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
-
+            // margin 
             TicToc t_margin;
             ROS_DEBUG("begin marginalization");
             marginalization_info->marginalize();
             ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
-            
+            // 调整位置 
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
             {
