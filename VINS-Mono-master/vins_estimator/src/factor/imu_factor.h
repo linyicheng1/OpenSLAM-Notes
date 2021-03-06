@@ -9,6 +9,12 @@
 
 #include <ceres/ceres.h>
 
+// IMU 预积分参数 
+// 残差维度，位置 3 + 速度 3 + 角度 3 + 加速度计bias 3 + 陀螺仪bias 3  ---  15
+// i时刻的位姿 ---  7 
+// i时刻的速度 + 加速度bias+角速度bias --- 9 
+// j时刻的位姿 ---  7 
+// j时刻的速度+加速度bias+角速度bias --- 9 
 class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
 {
   public:
@@ -18,17 +24,17 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
     }
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
-
+        // i 时刻的位姿
         Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);
         Eigen::Quaterniond Qi(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
-
+        // i 时刻的速度 加速度计bias 陀螺仪bias 
         Eigen::Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
         Eigen::Vector3d Bai(parameters[1][3], parameters[1][4], parameters[1][5]);
         Eigen::Vector3d Bgi(parameters[1][6], parameters[1][7], parameters[1][8]);
-
+        // j 时刻的位姿
         Eigen::Vector3d Pj(parameters[2][0], parameters[2][1], parameters[2][2]);
         Eigen::Quaterniond Qj(parameters[2][6], parameters[2][3], parameters[2][4], parameters[2][5]);
-
+        // j 时刻的速度 加速度计bias 陀螺仪bias 
         Eigen::Vector3d Vj(parameters[3][0], parameters[3][1], parameters[3][2]);
         Eigen::Vector3d Baj(parameters[3][3], parameters[3][4], parameters[3][5]);
         Eigen::Vector3d Bgj(parameters[3][6], parameters[3][7], parameters[3][8]);
@@ -56,15 +62,21 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
             pre_integration->repropagate(Bai, Bgi);
         }
 #endif
-
+        // 计算得到的残差，实际的计算过程在
+        //  evaluate() 函数
+        //  pre_integration->covariance 协方差计算中实现了 
         Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
+        // 计算得到残差 
         residual = pre_integration->evaluate(Pi, Qi, Vi, Bai, Bgi,
                                             Pj, Qj, Vj, Baj, Bgj);
-
+        // 根号信息矩阵 
+        // 利用Cholesky分解来开矩阵的根号 
         Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration->covariance.inverse()).matrixL().transpose();
         //sqrt_info.setIdentity();
+        // 最终的残差
         residual = sqrt_info * residual;
 
+        // 计算导数 
         if (jacobians)
         {
             double sum_dt = pre_integration->sum_dt;

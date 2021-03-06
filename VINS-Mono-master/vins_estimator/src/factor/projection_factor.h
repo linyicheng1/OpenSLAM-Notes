@@ -7,6 +7,12 @@
 #include "../utility/tic_toc.h"
 #include "../parameters.h"
 
+// 重投影误差因子 
+// 残差 -- 2维度（重投影u,v) 
+// i时刻位姿 -- 7
+// j时刻位姿 -- 7
+// 相机外参 -- 7 
+// 逆深度参数 -- 1
 class ProjectionFactor : public ceres::SizedCostFunction<2, 7, 7, 7, 1>
 {
   public:

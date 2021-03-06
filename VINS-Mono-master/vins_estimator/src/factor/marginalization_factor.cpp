@@ -147,12 +147,13 @@ int MarginalizationInfo::globalSize(int size) const
 void* ThreadsConstructA(void* threadsstruct)
 {
     ThreadsStruct* p = ((ThreadsStruct*)threadsstruct);
+    // A = J^T J   
     for (auto it : p->sub_factors)
-    {// 遍历所有的残差项
+    {// 遍历所有的残差项 
         for (int i = 0; i < static_cast<int>(it->parameter_blocks.size()); i++)
         {// 遍历当前残差项的参数 
             int idx_i = p->parameter_block_idx[reinterpret_cast<long>(it->parameter_blocks[i])];
-            int size_i = p->parameter_block_size[reinterpret_cast<long>(it->parameter_blocks[i])];
+            int size_i = p->parameter_block_size[reinterpret_cast<long>(it->parameter_blocks[i])]; 
             if (size_i == 7)
                 size_i = 6;
             Eigen::MatrixXd jacobian_i = it->jacobians[i].leftCols(size_i);

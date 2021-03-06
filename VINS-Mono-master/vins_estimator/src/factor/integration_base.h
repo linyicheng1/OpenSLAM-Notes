@@ -25,6 +25,7 @@ class IntegrationBase
 
     {
         noise = Eigen::Matrix<double, 18, 18>::Zero();
+        // IMU 测量噪声矩阵 
         noise.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
         noise.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
         noise.block<3, 3>(6, 6) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
@@ -85,6 +86,7 @@ class IntegrationBase
 		// 更新对应的雅克比矩阵，查找后发现是每次都会更新雅克比 
         if(update_jacobian)
         {// 雅克比矩阵在优化时会用到 
+
             Vector3d w_x = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
             Vector3d a_0_x = _acc_0 - linearized_ba;
             Vector3d a_1_x = _acc_1 - linearized_ba;
@@ -99,7 +101,8 @@ class IntegrationBase
             R_a_1_x<<0, -a_1_x(2), a_1_x(1),
                 a_1_x(2), 0, -a_1_x(0),
                 -a_1_x(1), a_1_x(0), 0;
-
+            // 这里的F和V是离散形式，和原文连续形式有出入 
+            // 求解矩阵 F 
             MatrixXd F = MatrixXd::Zero(15, 15);
             F.block<3, 3>(0, 0) = Matrix3d::Identity();
             F.block<3, 3>(0, 3) = -0.25 * delta_q.toRotationMatrix() * R_a_0_x * _dt * _dt + 
@@ -117,7 +120,7 @@ class IntegrationBase
             F.block<3, 3>(9, 9) = Matrix3d::Identity();
             F.block<3, 3>(12, 12) = Matrix3d::Identity();
             //cout<<"A"<<endl<<A<<endl;
-
+            // 求解矩阵 V 
             MatrixXd V = MatrixXd::Zero(15,18);
             V.block<3, 3>(0, 0) =  0.25 * delta_q.toRotationMatrix() * _dt * _dt;
             V.block<3, 3>(0, 3) =  0.25 * -result_delta_q.toRotationMatrix() * R_a_1_x  * _dt * _dt * 0.5 * _dt;
@@ -134,9 +137,11 @@ class IntegrationBase
 
             //step_jacobian = F;
             //step_V = V;
-            // 雅克比矩阵 
+            // 增量的方式求解协方差和雅可比矩阵，类似于ekf的方式
+            // 雅克比矩阵的传播，这里的雅可比矩阵是预积分量对bias的导数
+            // 原始论文公式 32 
             jacobian = F * jacobian;
-			// 协方差矩阵 
+			// 协方差矩阵的传播 原始论文公式 31 
             covariance = F * covariance * F.transpose() + V * noise * V.transpose();
         }
     }
@@ -191,12 +196,14 @@ class IntegrationBase
         gyr_0 = gyr_1;  
      
     }
-
+    // IMU预积分的误差计算
+    // 前面五个参数 i时刻的 PQVBaBg
+    // 后面五个参数 j时刻的 PQVBaBg
     Eigen::Matrix<double, 15, 1> evaluate(const Eigen::Vector3d &Pi, const Eigen::Quaterniond &Qi, const Eigen::Vector3d &Vi, const Eigen::Vector3d &Bai, const Eigen::Vector3d &Bgi,
                                           const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj, const Eigen::Vector3d &Vj, const Eigen::Vector3d &Baj, const Eigen::Vector3d &Bgj)
     {
         Eigen::Matrix<double, 15, 1> residuals;
-
+        // 预积分量对于bias的导数
         Eigen::Matrix3d dp_dba = jacobian.block<3, 3>(O_P, O_BA);
         Eigen::Matrix3d dp_dbg = jacobian.block<3, 3>(O_P, O_BG);
 
@@ -204,17 +211,24 @@ class IntegrationBase
 
         Eigen::Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
         Eigen::Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
-
+        // bias 更新的偏差 
         Eigen::Vector3d dba = Bai - linearized_ba;
         Eigen::Vector3d dbg = Bgi - linearized_bg;
-
+        // 通过局部线性话，更新预积分量，而没有重新积分
+        // 因为bias变化需要重新预积分，但是积分过程很耗时
+        // 因此直接线性化加上一个增量，得到修正后的预积分值 
         Eigen::Quaterniond corrected_delta_q = delta_q * Utility::deltaQ(dq_dbg * dbg);
         Eigen::Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
         Eigen::Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
-
+        // 套公式，算误差
+        // 位置减去预积分量 
         residuals.block<3, 1>(O_P, 0) = Qi.inverse() * (0.5 * G * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
+        // 四元数旋转公式 
         residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
+        // 速度的误差
+        // 速度减去预积分量
         residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (G * sum_dt + Vj - Vi) - corrected_delta_v;
+        // bias 的误差就直接详见 
         residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
         residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
         return residuals;
