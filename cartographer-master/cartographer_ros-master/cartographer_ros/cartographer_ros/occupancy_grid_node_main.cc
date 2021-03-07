@@ -79,10 +79,14 @@ class Node {
   ros::Time last_timestamp_;
 };
 
+// node 类构造函数 
+// 这个构造函数就写的b格很高
 Node::Node(const double resolution, const double publish_period_sec)
     : resolution_(resolution),
       client_(node_handle_.serviceClient<::cartographer_ros_msgs::SubmapQuery>(
           kSubmapQueryServiceName)),
+      // 构造订阅子地图的变量 submap_list_subscriber_ 
+      // 消息回调函数：HandleSubmapList
       submap_list_subscriber_(node_handle_.subscribe(
           kSubmapListTopic, kLatestOnlyPublisherQueueSize,
           boost::function<void(
@@ -90,14 +94,16 @@ Node::Node(const double resolution, const double publish_period_sec)
               [this](const cartographer_ros_msgs::SubmapList::ConstPtr& msg) {
                 HandleSubmapList(msg);
               }))),
+      // 构造栅格地图发布变量 occupancy_grid_publisher_         
       occupancy_grid_publisher_(
           node_handle_.advertise<::nav_msgs::OccupancyGrid>(
               FLAGS_occupancy_grid_topic, kLatestOnlyPublisherQueueSize,
               true /* latched */)),
+      // 新建一个定时器，调用函数 DrawAndPublish 发布栅格地图信息
       occupancy_grid_publisher_timer_(
           node_handle_.createWallTimer(::ros::WallDuration(publish_period_sec),
                                        &Node::DrawAndPublish, this)) {}
-
+// 子地图数据接收回调函数
 void Node::HandleSubmapList(
     const cartographer_ros_msgs::SubmapList::ConstPtr& msg) {
   absl::MutexLock locker(&mutex_);
@@ -108,31 +114,40 @@ void Node::HandleSubmapList(
   }
 
   // Keep track of submap IDs that don't appear in the message anymore.
+  // 把之前的所有子地图放到待删除列表中
   std::set<SubmapId> submap_ids_to_delete;
   for (const auto& pair : submap_slices_) {
     submap_ids_to_delete.insert(pair.first);
   }
-
+  // 遍历所有接收到的子地图
   for (const auto& submap_msg : msg->submap) {
+    // 构造id 
     const SubmapId id{submap_msg.trajectory_id, submap_msg.submap_index};
+    // 这个对应的id的子地图就不删除 
     submap_ids_to_delete.erase(id);
+    // 如果这个子地图不更新的话，直接跳过
     if ((submap_msg.is_frozen && !FLAGS_include_frozen_submaps) ||
         (!submap_msg.is_frozen && !FLAGS_include_unfrozen_submaps)) {
       continue;
     }
+    // 当前子地图的应用
     SubmapSlice& submap_slice = submap_slices_[id];
+    // 更新子地图数据 
     submap_slice.pose = ToRigid3d(submap_msg.pose);
     submap_slice.metadata_version = submap_msg.submap_version;
+    // 如果不是新的子地图就可以直接结束了
     if (submap_slice.surface != nullptr &&
         submap_slice.version == submap_msg.submap_version) {
       continue;
     }
-
+    // 新的子地图处理
+    // 调用函数 FetchSubmapTextures 获取子地图的数据 
     auto fetched_textures =
         ::cartographer_ros::FetchSubmapTextures(id, &client_);
     if (fetched_textures == nullptr) {
       continue;
     }
+    // 
     CHECK(!fetched_textures->textures.empty());
     submap_slice.version = fetched_textures->version;
 
@@ -145,6 +160,7 @@ void Node::HandleSubmapList(
     submap_slice.slice_pose = fetched_texture->slice_pose;
     submap_slice.resolution = fetched_texture->resolution;
     submap_slice.cairo_data.clear();
+    // 子地图数据获得 
     submap_slice.surface = ::cartographer::io::DrawTexture(
         fetched_texture->pixels.intensity, fetched_texture->pixels.alpha,
         fetched_texture->width, fetched_texture->height,
@@ -152,6 +168,7 @@ void Node::HandleSubmapList(
   }
 
   // Delete all submaps that didn't appear in the message.
+  // 删除掉所有没有再出现的子地图
   for (const auto& id : submap_ids_to_delete) {
     submap_slices_.erase(id);
   }
@@ -160,14 +177,22 @@ void Node::HandleSubmapList(
   last_frame_id_ = msg->header.frame_id;
 }
 
+// 定时调用发布占用栅格地图
+// 调用函数
+// 1、PaintSubmapSlices
+// 2、CreateOccupancyGridMsg
 void Node::DrawAndPublish(const ::ros::WallTimerEvent& unused_timer_event) {
   absl::MutexLock locker(&mutex_);
+  // 确保有数据 
   if (submap_slices_.empty() || last_frame_id_.empty()) {
     return;
   }
+  // 绘制子地图,子地图数据 submap_slices_ 
   auto painted_slices = PaintSubmapSlices(submap_slices_, resolution_);
+  // 创建占用栅格地图信息 
   std::unique_ptr<nav_msgs::OccupancyGrid> msg_ptr = CreateOccupancyGridMsg(
       painted_slices, resolution_, last_frame_id_, last_timestamp_);
+  // 发布占用栅格信息 
   occupancy_grid_publisher_.publish(*msg_ptr);
 }
 
@@ -186,6 +211,7 @@ int main(int argc, char** argv) {
   ::ros::start();
 
   cartographer_ros::ScopedRosLogSink ros_log_sink;
+  // 构造node节点 
   ::cartographer_ros::Node node(FLAGS_resolution, FLAGS_publish_period_sec);
 
   ::ros::spin();

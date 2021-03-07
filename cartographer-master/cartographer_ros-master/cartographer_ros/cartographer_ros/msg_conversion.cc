@@ -370,46 +370,56 @@ cartographer::transform::Rigid3d ComputeLocalFrameFromLatLong(
   return cartographer::transform::Rigid3d(rotation * -translation, rotation);
 }
 
+// 通过 painted_slices 构造占用栅格地图数据 
 std::unique_ptr<nav_msgs::OccupancyGrid> CreateOccupancyGridMsg(
     const cartographer::io::PaintSubmapSlicesResult& painted_slices,
     const double resolution, const std::string& frame_id,
     const ros::Time& time) {
+  // new 一个占用栅格地图指针     
   auto occupancy_grid = absl::make_unique<nav_msgs::OccupancyGrid>();
-
+  // 获取地图宽度 
   const int width = cairo_image_surface_get_width(painted_slices.surface.get());
+  // 获取地图长度 
   const int height =
       cairo_image_surface_get_height(painted_slices.surface.get());
-
-  occupancy_grid->header.stamp = time;
-  occupancy_grid->header.frame_id = frame_id;
-  occupancy_grid->info.map_load_time = time;
-  occupancy_grid->info.resolution = resolution;
-  occupancy_grid->info.width = width;
-  occupancy_grid->info.height = height;
-  occupancy_grid->info.origin.position.x =
+  // 填充一些基本的地图数据 
+  occupancy_grid->header.stamp = time;// 时间 
+  occupancy_grid->header.frame_id = frame_id;// id 
+  occupancy_grid->info.map_load_time = time;// 加载时间
+  occupancy_grid->info.resolution = resolution;// 精度
+  occupancy_grid->info.width = width;// 地图宽度
+  occupancy_grid->info.height = height;// 地图长度 
+  occupancy_grid->info.origin.position.x = // 原点 x坐标
       -painted_slices.origin.x() * resolution;
-  occupancy_grid->info.origin.position.y =
+  occupancy_grid->info.origin.position.y = // 原点 y坐标
       (-height + painted_slices.origin.y()) * resolution;
-  occupancy_grid->info.origin.position.z = 0.;
+  occupancy_grid->info.origin.position.z = 0.;// 原点 z坐标
+  // 原点的位置,四元数表达(1,0,0,0)
   occupancy_grid->info.origin.orientation.w = 1.;
   occupancy_grid->info.origin.orientation.x = 0.;
   occupancy_grid->info.origin.orientation.y = 0.;
   occupancy_grid->info.origin.orientation.z = 0.;
-
+  // 开辟数据内存 
   const uint32_t* pixel_data = reinterpret_cast<uint32_t*>(
       cairo_image_surface_get_data(painted_slices.surface.get()));
   occupancy_grid->data.reserve(width * height);
+  // 遍历所有地图点 
   for (int y = height - 1; y >= 0; --y) {
     for (int x = 0; x < width; ++x) {
+      // 获取对应的数据 pixel_data 
       const uint32_t packed = pixel_data[y * width + x];
       const unsigned char color = packed >> 16;
       const unsigned char observed = packed >> 8;
+      // 没有观测到则设置为零
+      // 观测到则计算相应的概率
       const int value =
           observed == 0
               ? -1
               : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);
+      // 确保在[-1,100]范围内 
       CHECK_LE(-1, value);
       CHECK_GE(100, value);
+      // 设置占用栅格概率 
       occupancy_grid->data.push_back(value);
     }
   }

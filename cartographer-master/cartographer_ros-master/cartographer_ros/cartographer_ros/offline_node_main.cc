@@ -20,6 +20,7 @@
 #include "gflags/gflags.h"
 #include "ros/ros.h"
 
+// 离线cartographer运行节点 
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   google::ParseCommandLineFlags(&argc, &argv, true);
@@ -32,9 +33,10 @@ int main(int argc, char** argv) {
   const cartographer_ros::MapBuilderFactory map_builder_factory = [](
       const ::cartographer::mapping::proto::MapBuilderOptions&
           map_builder_options) {
+    // 调用函数 mapping::CreateMapBuilder 构造 MapBuilderInterface 的指针     
     return ::cartographer::mapping::CreateMapBuilder(map_builder_options);
   };
-
+  // 调用函数 cartographer_ros::RunOfflineNode
   cartographer_ros::RunOfflineNode(map_builder_factory);
 
   ::ros::shutdown();

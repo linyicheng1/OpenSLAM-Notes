@@ -56,6 +56,7 @@ inline void FastGzipString(const std::string& uncompressed,
                           uncompressed.size());
 }
 
+// 获取压缩的地图数据
 inline void FastGunzipString(const std::string& compressed,
                              std::string* decompressed) {
   boost::iostreams::filtering_ostream out;

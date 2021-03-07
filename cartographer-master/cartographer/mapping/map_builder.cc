@@ -224,6 +224,7 @@ void MapBuilder::FinishTrajectory(const int trajectory_id)
   pose_graph_->FinishTrajectory(trajectory_id);
 }
 
+// ROS节点获取子地图数据时主动调用该函数 
 std::string MapBuilder::SubmapToProto(
     const SubmapId& submap_id, proto::SubmapQuery::Response* const response) {
   if (submap_id.trajectory_id < 0 ||
@@ -232,7 +233,7 @@ std::string MapBuilder::SubmapToProto(
            std::to_string(submap_id.trajectory_id) + " but there are only " +
            std::to_string(num_trajectory_builders()) + " trajectories.";
   }
-
+  // 获取submap_id 对应的子地图数据
   const auto submap_data = pose_graph_->GetSubmapData(submap_id);
   if (submap_data.submap == nullptr) {
     return "Requested submap " + std::to_string(submap_id.submap_index) +

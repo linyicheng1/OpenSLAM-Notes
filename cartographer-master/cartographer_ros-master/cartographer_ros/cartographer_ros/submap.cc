@@ -25,9 +25,11 @@
 
 namespace cartographer_ros {
 
+// 获取子地图数据 
 std::unique_ptr<::cartographer::io::SubmapTextures> FetchSubmapTextures(
     const ::cartographer::mapping::SubmapId& submap_id,
     ros::ServiceClient* client) {
+  // ROS 服务 SubmapQuery    
   ::cartographer_ros_msgs::SubmapQuery srv;
   srv.request.trajectory_id = submap_id.trajectory_id;
   srv.request.submap_index = submap_id.submap_index;
@@ -38,9 +40,12 @@ std::unique_ptr<::cartographer::io::SubmapTextures> FetchSubmapTextures(
   if (srv.response.textures.empty()) {
     return nullptr;
   }
+  // 地图数据 
   auto response = absl::make_unique<::cartographer::io::SubmapTextures>();
   response->version = srv.response.submap_version;
+
   for (const auto& texture : srv.response.textures) {
+    // 压缩的子地图数据 
     const std::string compressed_cells(texture.cells.begin(),
                                        texture.cells.end());
     response->textures.emplace_back(::cartographer::io::SubmapTexture{

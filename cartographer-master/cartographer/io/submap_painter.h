@@ -29,16 +29,20 @@
 namespace cartographer {
 namespace io {
 
+// 子地图绘制结果结构体 
 struct PaintSubmapSlicesResult {
   PaintSubmapSlicesResult(::cartographer::io::UniqueCairoSurfacePtr surface,
                           Eigen::Array2f origin)
       : surface(std::move(surface)), origin(origin) {}
+  // 地图指针,内存指针
   ::cartographer::io::UniqueCairoSurfacePtr surface;
 
   // Top left pixel of 'surface' in map frame.
+  // 地图原点 
   Eigen::Array2f origin;
 };
 
+// 子地图结构体 
 struct SubmapSlice {
   SubmapSlice()
       : surface(::cartographer::io::MakeUniqueCairoSurfacePtr(nullptr)) {}

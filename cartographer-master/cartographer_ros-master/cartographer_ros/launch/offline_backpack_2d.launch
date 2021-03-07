@@ -19,10 +19,11 @@
   <arg name="no_rviz" default="false"/>
   <arg name="rviz_config" default="$(find cartographer_ros)/configuration_files/demo_2d.rviz"/>
   <arg name="configuration_directory" default="$(find cartographer_ros)/configuration_files"/>
+  <!--lua格式的配置文件-->>
   <arg name="configuration_basenames" default="backpack_2d.lua"/>
   <arg name="urdf_filenames" default="$(find cartographer_ros)/urdf/backpack_2d.urdf"/>
   <arg name="launch_prefix" default=""/>
-
+  <!--包含launch文件offline_node.launch-->>
   <remap from="echoes" to="horizontal_laser_2d"/>
   <include file="$(find cartographer_ros)/launch/offline_node.launch">
     <arg name="bag_filenames" value="$(arg bag_filenames)"/>

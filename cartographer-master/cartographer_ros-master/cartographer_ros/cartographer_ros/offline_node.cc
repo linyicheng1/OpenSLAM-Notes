@@ -86,8 +86,9 @@ constexpr int kSingleThreaded = 1;
 // the assumption of higher frequency tf this should ensure that tf can
 // always interpolate.
 const ::ros::Duration kDelay = ::ros::Duration(1.0);
-
+// 离线运行节点 
 void RunOfflineNode(const MapBuilderFactory& map_builder_factory) {
+  // 确保配置参数正确 
   CHECK(!FLAGS_configuration_directory.empty())
       << "-configuration_directory is missing.";
   CHECK(!FLAGS_configuration_basenames.empty())
@@ -100,6 +101,7 @@ void RunOfflineNode(const MapBuilderFactory& map_builder_factory) {
   const std::vector<std::string> configuration_basenames =
       absl::StrSplit(FLAGS_configuration_basenames, ',', absl::SkipEmpty());
   std::vector<TrajectoryOptions> bag_trajectory_options(1);
+  // 获取配置参数 
   std::tie(node_options, bag_trajectory_options.at(0)) =
       LoadOptions(FLAGS_configuration_directory, configuration_basenames.at(0));
 
@@ -121,14 +123,14 @@ void RunOfflineNode(const MapBuilderFactory& map_builder_factory) {
   // transform. When we finish processing the bag, we will simply drop any
   // remaining sensor data that cannot be transformed due to missing transforms.
   node_options.lookup_transform_timeout_sec = 0.;
-
+  // 根据配置参数构造一个实例化的地图构造类 
   auto map_builder = map_builder_factory(node_options.map_builder_options);
 
   const std::chrono::time_point<std::chrono::steady_clock> start_time =
       std::chrono::steady_clock::now();
 
   tf2_ros::Buffer tf_buffer;
-
+  // urdf 文件读取 
   std::vector<geometry_msgs::TransformStamped> urdf_transforms;
   const std::vector<std::string> urdf_filenames =
       absl::StrSplit(FLAGS_urdf_filenames, ',', absl::SkipEmpty());
@@ -141,13 +143,14 @@ void RunOfflineNode(const MapBuilderFactory& map_builder_factory) {
   }
 
   tf_buffer.setUsingDedicatedThread(true);
-
+  // 创建一个node类 把地图构建的指针传进去
   Node node(node_options, std::move(map_builder), &tf_buffer,
             FLAGS_collect_metrics);
+
   if (!FLAGS_load_state_filename.empty()) {
     node.LoadState(FLAGS_load_state_filename, FLAGS_load_frozen_state);
   }
-
+  // 发布tf信息 
   ::ros::Publisher tf_publisher =
       node.node_handle()->advertise<tf2_msgs::TFMessage>(
           kTfTopic, kLatestOnlyPublisherQueueSize);
@@ -165,13 +168,14 @@ void RunOfflineNode(const MapBuilderFactory& map_builder_factory) {
   ros::AsyncSpinner async_spinner(kSingleThreaded);
   async_spinner.start();
   rosgraph_msgs::Clock clock;
+  // ros 重新发布时间 
   auto clock_republish_timer = node.node_handle()->createWallTimer(
       ::ros::WallDuration(kClockPublishFrequencySec),
       [&clock_publisher, &clock](const ::ros::WallTimerEvent&) {
         clock_publisher.publish(clock);
       },
       false /* oneshot */, false /* autostart */);
-
+  // 读取bag文件中的信息
   std::vector<
       std::set<cartographer::mapping::TrajectoryBuilderInterface::SensorId>>
       bag_expected_sensor_ids;

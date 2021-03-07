@@ -54,6 +54,8 @@
 namespace cartographer_ros {
 
 // Wires up ROS topics to SLAM.
+// 将ROS消息数据添加到SLAM系统中
+// 相当于这个类就是SLAM系统到ROS的一个接口类
 class Node {
  public:
   Node(const NodeOptions& node_options,
@@ -65,17 +67,21 @@ class Node {
   Node& operator=(const Node&) = delete;
 
   // Finishes all yet active trajectories.
+  // 完成了所有轨迹
   void FinishAllTrajectories();
   // Finishes a single given trajectory. Returns false if the trajectory did not
   // exist or was already finished.
+  // 设置某一条轨迹完成 
   bool FinishTrajectory(int trajectory_id);
 
   // Runs final optimization. All trajectories have to be finished when calling.
+  // 当所有轨迹结束了，运行最终的优化程序 
   void RunFinalOptimization();
 
   // Starts the first trajectory with the default topics.
+  // 开始第一条轨迹，使用默认的消息 
   void StartTrajectoryWithDefaultTopics(const TrajectoryOptions& options);
-
+  
   // Returns unique SensorIds for multiple input bag files based on
   // their TrajectoryOptions.
   // 'SensorId::id' is the expected ROS topic name.
@@ -85,6 +91,7 @@ class Node {
       const std::vector<TrajectoryOptions>& bags_options) const;
 
   // Adds a trajectory for offline processing, i.e. not listening to topics.
+  // 添加离线的轨迹 
   int AddOfflineTrajectory(
       const std::set<
           cartographer::mapping::TrajectoryBuilderInterface::SensorId>&
@@ -92,33 +99,42 @@ class Node {
       const TrajectoryOptions& options);
 
   // The following functions handle adding sensor data to a trajectory.
+  // 往轨迹中添加里程计信息
   void HandleOdometryMessage(int trajectory_id, const std::string& sensor_id,
                              const nav_msgs::Odometry::ConstPtr& msg);
+  // 添加GPS信息 
   void HandleNavSatFixMessage(int trajectory_id, const std::string& sensor_id,
                               const sensor_msgs::NavSatFix::ConstPtr& msg);
+  // 添加路标点信息，如自定义的二维码
   void HandleLandmarkMessage(
       int trajectory_id, const std::string& sensor_id,
       const cartographer_ros_msgs::LandmarkList::ConstPtr& msg);
+  // 添加IMU数据
   void HandleImuMessage(int trajectory_id, const std::string& sensor_id,
                         const sensor_msgs::Imu::ConstPtr& msg);
+  // 添加激光雷达数据                       
   void HandleLaserScanMessage(int trajectory_id, const std::string& sensor_id,
                               const sensor_msgs::LaserScan::ConstPtr& msg);
+  // 减价激光雷达Echo类型数据，多一个强度数据 
   void HandleMultiEchoLaserScanMessage(
       int trajectory_id, const std::string& sensor_id,
       const sensor_msgs::MultiEchoLaserScan::ConstPtr& msg);
+  // 添加点云数据   
   void HandlePointCloud2Message(int trajectory_id, const std::string& sensor_id,
                                 const sensor_msgs::PointCloud2::ConstPtr& msg);
 
   // Serializes the complete Node state.
+  // 序列化当前的状态，即将当前所有信息保存到文件中 
   void SerializeState(const std::string& filename,
                       const bool include_unfinished_submaps);
-
+  // 读取之间的构建的地图信息 .pbstream 文件 
   // Loads a serialized SLAM state from a .pbstream file.
   void LoadState(const std::string& state_filename, bool load_frozen_state);
-
+  // ROS handle 
   ::ros::NodeHandle* node_handle();
 
  private:
+ // 私有的函数和变量
   struct Subscriber {
     ::ros::Subscriber subscriber;
 

@@ -40,6 +40,8 @@
 namespace cartographer_ros {
 
 // Converts ROS messages into SensorData in tracking frame for the MapBuilder.
+// 传感器的统一接口 
+// 处理所有传感器数据 
 class SensorBridge {
  public:
   explicit SensorBridge(

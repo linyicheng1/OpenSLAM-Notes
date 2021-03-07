@@ -47,8 +47,10 @@
 
 namespace cartographer_ros {
 
+// 更加底层的接口，由node类调用实现
 class MapBuilderBridge {
  public:
+  // 局部轨迹数据 
   struct LocalTrajectoryData {
     // Contains the trajectory data received from local SLAM, after
     // it had processed accumulated 'range_data_in_local' and estimated
@@ -90,16 +92,19 @@ class MapBuilderBridge {
       cartographer_ros_msgs::TrajectoryQuery::Request& request,
       cartographer_ros_msgs::TrajectoryQuery::Response& response);
 
+  //获取轨迹的状态  
   std::map<int /* trajectory_id */,
            ::cartographer::mapping::PoseGraphInterface::TrajectoryState>
   GetTrajectoryStates();
-  cartographer_ros_msgs::SubmapList GetSubmapList();
+  // 获取当前SLAM系统的状态发布到ros上去 
+  // node 节点中定时调用 
+  cartographer_ros_msgs::SubmapList GetSubmapList();// 子地图 
   std::unordered_map<int, LocalTrajectoryData> GetLocalTrajectoryData()
-      LOCKS_EXCLUDED(mutex_);
-  visualization_msgs::MarkerArray GetTrajectoryNodeList();
-  visualization_msgs::MarkerArray GetLandmarkPosesList();
-  visualization_msgs::MarkerArray GetConstraintList();
-
+      LOCKS_EXCLUDED(mutex_);// 局部轨迹信息 
+  visualization_msgs::MarkerArray GetTrajectoryNodeList();// 轨迹信息
+  visualization_msgs::MarkerArray GetLandmarkPosesList();// 路标点
+  visualization_msgs::MarkerArray GetConstraintList();// 约束
+  // 传感器统一接口，根据id来获取 
   SensorBridge* sensor_bridge(int trajectory_id);
 
  private:

@@ -193,7 +193,7 @@ void PoseGraph3D::AddTrajectoryIfNeeded(const int trajectory_id) {
             options_.global_sampling_ratio());
   }
 }
-
+// 位姿图中添加IMU数据
 void PoseGraph3D::AddImuData(const int trajectory_id,
                              const sensor::ImuData& imu_data) {
   AddWorkItem([=]() LOCKS_EXCLUDED(mutex_) {

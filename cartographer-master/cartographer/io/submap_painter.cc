@@ -27,6 +27,7 @@ Eigen::Affine3d ToEigen(const ::cartographer::transform::Rigid3d& rigid3) {
   return Eigen::Translation3d(rigid3.translation()) * rigid3.rotation();
 }
 
+// 绘制所有子地图实际调用函数 
 void CairoPaintSubmapSlices(
     const double scale,
     const std::map<::cartographer::mapping::SubmapId, SubmapSlice>& submaps,
@@ -34,10 +35,12 @@ void CairoPaintSubmapSlices(
   cairo_scale(cr, scale, scale);
 
   for (auto& pair : submaps) {
+    // 遍历所有子地图 
     const auto& submap_slice = pair.second;
     if (submap_slice.surface == nullptr) {
       return;
     }
+    // 获取坐标 
     const Eigen::Matrix4d homo =
         ToEigen(submap_slice.pose * submap_slice.slice_pose).matrix();
 
@@ -69,6 +72,7 @@ bool Has3DGrids(const mapping::proto::Submap& submap) {
 
 }  // namespace
 
+// 绘制子地图 
 PaintSubmapSlicesResult PaintSubmapSlices(
     const std::map<::cartographer::mapping::SubmapId, SubmapSlice>& submaps,
     const double resolution) {
@@ -114,6 +118,7 @@ PaintSubmapSlicesResult PaintSubmapSlices(
                            });
     cairo_surface_flush(surface.get());
   }
+  // 地图指针 surface 地图原点 origin
   return PaintSubmapSlicesResult(std::move(surface), origin);
 }
 
@@ -174,15 +179,19 @@ void DeserializeAndFillSubmapSlices(
   }
 }
 
+// 解包地图数据 
+// compressed_cells 压缩的地图数据
 SubmapTexture::Pixels UnpackTextureData(const std::string& compressed_cells,
                                         const int width, const int height) {
   SubmapTexture::Pixels pixels;
   std::string cells;
+  // 获取地图数据 
   ::cartographer::common::FastGunzipString(compressed_cells, &cells);
   const int num_pixels = width * height;
   CHECK_EQ(cells.size(), 2 * num_pixels);
   pixels.intensity.reserve(num_pixels);
   pixels.alpha.reserve(num_pixels);
+  // 填充地图数据
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
       pixels.intensity.push_back(cells[(i * width + j) * 2]);
@@ -192,6 +201,9 @@ SubmapTexture::Pixels UnpackTextureData(const std::string& compressed_cells,
   return pixels;
 }
 
+// 子地图数据绘制
+// 地图数据包含在
+// intensity & alpha 
 UniqueCairoSurfacePtr DrawTexture(const std::vector<char>& intensity,
                                   const std::vector<char>& alpha,
                                   const int width, const int height,
@@ -202,6 +214,7 @@ UniqueCairoSurfacePtr DrawTexture(const std::vector<char>& intensity,
   // complicated. Let's check that it is not needed.
   const int expected_stride = 4 * width;
   CHECK_EQ(expected_stride, cairo_format_stride_for_width(kCairoFormat, width));
+  // 遍历 intensity.size() 
   for (size_t i = 0; i < intensity.size(); ++i) {
     // We use the red channel to track intensity information. The green
     // channel we use to track if a cell was ever observed.
@@ -212,10 +225,12 @@ UniqueCairoSurfacePtr DrawTexture(const std::vector<char>& intensity,
     cairo_data->push_back((alpha_value << 24) | (intensity_value << 16) |
                           (observed << 8) | 0);
   }
-
+  // 地图数据,构造一个通用指针 
+  // cairo_data->data() 包含地图数据 
   auto surface = MakeUniqueCairoSurfacePtr(cairo_image_surface_create_for_data(
       reinterpret_cast<unsigned char*>(cairo_data->data()), kCairoFormat, width,
       height, expected_stride));
+
   CHECK_EQ(cairo_surface_status(surface.get()), CAIRO_STATUS_SUCCESS)
       << cairo_status_to_string(cairo_surface_status(surface.get()));
   return surface;
