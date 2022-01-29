@@ -5,6 +5,7 @@
 
 ### 视觉SLAM
 * DSO(进行中)
+* SVO
 
 ### VIO
 * VINS-Mono
